@@ -1,0 +1,316 @@
+:root {
+    --primary-color: #990000;
+    /* Crimson Red */
+    --secondary-color: #FFD700;
+    /* Gold Yellow */
+    --accent-color: #000000;
+    /* Black */
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    --text-color: #000000;
+}
+
+/* Layout and Navigation */
+body {
+    padding-top: 56px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%) !important;
+    color: var(--text-color);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Glassmorphism utility */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    box-shadow: var(--glass-shadow);
+}
+
+/* Main layout container */
+#layoutSidenav {
+    display: flex;
+    width: 100%;
+    min-height: calc(100vh - 56px);
+}
+
+/* Sidebar navigation */
+#layoutSidenav_nav {
+    width: 240px;
+    height: calc(100vh - 56px);
+    position: fixed;
+    left: 0;
+    top: 56px;
+    z-index: 1038;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--glass-border);
+}
+
+/* Main content area */
+#layoutSidenav_content {
+    width: 100%;
+    padding: 2rem;
+    margin-left: 240px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+    min-height: calc(100vh - 56px);
+}
+
+/* SB Admin 2 Support */
+#content-wrapper {
+    background: transparent !important;
+    padding-left: 0 !important;
+    padding-top: 70px !important;
+}
+
+#content {
+    background: transparent !important;
+}
+
+.topbar {
+    background: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border) !important;
+    height: 70px !important;
+}
+
+/* Navbar styles */
+.sb-topnav {
+    height: 56px;
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--primary-color);
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.navbar-brand {
+    color: var(--secondary-color) !important;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Profile picture in navbar */
+.navbar .dropdown-toggle img {
+    width: 35px;
+    height: 35px;
+    object-fit: cover;
+    border: 2px solid var(--secondary-color);
+    padding: 1px;
+}
+
+/* Sidebar styles */
+.sb-sidenav {
+    height: 100%;
+    width: 100%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.sb-sidenav .sb-sidenav-menu .nav-link {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s;
+    border-radius: 8px;
+    margin: 0.2rem 0.8rem;
+}
+
+.sb-sidenav .sb-sidenav-menu .nav-link:hover {
+    color: var(--secondary-color);
+    background: rgba(153, 0, 0, 0.2);
+    transform: translateX(5px);
+}
+
+.sb-sidenav .sb-sidenav-menu .nav-link.active {
+    color: var(--secondary-color);
+    background: rgba(153, 0, 0, 0.4);
+    border-left: 4px solid var(--secondary-color);
+}
+
+.sb-sidenav .sb-sidenav-menu .sb-nav-link-icon {
+    margin-right: 1rem;
+    font-size: 1.1rem;
+}
+
+.sb-sidenav .sb-sidenav-menu .sb-sidenav-menu-heading {
+    padding: 1.5rem 1.5rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--primary-color);
+    text-transform: uppercase;
+}
+
+/* Toggled state */
+.sb-sidenav-toggled #layoutSidenav #layoutSidenav_nav {
+    transform: translateX(-240px);
+}
+
+.sb-sidenav-toggled #layoutSidenav #layoutSidenav_content {
+    margin-left: 0;
+}
+
+/* Cards */
+.card {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 16px !important;
+    color: #fff !important;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4) !important;
+    border-color: rgba(153, 0, 0, 0.3) !important;
+}
+
+.card-header {
+    background: rgba(153, 0, 0, 0.2) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: var(--secondary-color) !important;
+    font-weight: 700;
+    padding: 1rem 1.5rem;
+}
+
+/* Tables in Glass Containers */
+.glass .table {
+    background-color: transparent !important;
+    margin-bottom: 0;
+}
+
+.glass .table thead th {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: var(--secondary-color) !important;
+}
+
+.glass .table tbody tr {
+    background-color: transparent !important;
+    transition: background-color 0.2s ease;
+}
+
+.glass .table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.glass .table td {
+    border-color: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 4px 15px rgba(153, 0, 0, 0.3);
+}
+
+.btn-primary:hover {
+    background-color: #b30000 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(153, 0, 0, 0.4);
+}
+
+.btn-warning {
+    background-color: var(--secondary-color) !important;
+    border-color: var(--secondary-color) !important;
+    color: #000 !important;
+    font-weight: 600;
+}
+
+/* Glass Buttons */
+.btn.glass {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+}
+
+.btn.glass:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: var(--secondary-color) !important;
+    color: var(--secondary-color) !important;
+}
+
+/* Forms */
+.form-control,
+.form-select {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 0.25rem rgba(153, 0, 0, 0.25);
+}
+
+.form-control::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Breadcrumb */
+.breadcrumb-item a {
+    color: var(--secondary-color) !important;
+}
+
+.breadcrumb-item.active {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Badges */
+.badge.bg-success {
+    background-color: rgba(40, 167, 69, 0.2) !important;
+    color: #28a745 !important;
+    border: 1px solid #28a745;
+}
+
+.badge.bg-danger {
+    background-color: rgba(220, 53, 69, 0.2) !important;
+    color: #dc3545 !important;
+    border: 1px solid #dc3545;
+}
+
+/* Toast */
+.toast {
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--primary-color);
+    border-radius: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #layoutSidenav_nav {
+        transform: translateX(-240px);
+    }
+
+    #layoutSidenav_content {
+        margin-left: 0;
+        padding: 1rem;
+    }
+
+    .sb-sidenav-toggled #layoutSidenav #layoutSidenav_nav {
+        transform: translateX(0);
+    }
+}

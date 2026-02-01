@@ -1,0 +1,6 @@
+-- Add profile picture column
+ALTER TABLE users 
+ADD COLUMN profile_pic VARCHAR(255) DEFAULT NULL AFTER last_name,
+ADD COLUMN phone VARCHAR(20) DEFAULT NULL AFTER profile_pic,
+ADD COLUMN address TEXT DEFAULT NULL AFTER phone,
+ADD COLUMN faculty VARCHAR(100) DEFAULT NULL AFTER role;

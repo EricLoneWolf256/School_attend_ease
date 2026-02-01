@@ -1,0 +1,20 @@
+/* Course selection dropdown styles */
+#courseSelect, 
+#courseSelect option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+/* Ensure dropdown text is visible in dark mode */
+.modal-content .form-select,
+.modal-content .form-select option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+/* Hover state for dropdown options */
+#courseSelect option:hover,
+#courseSelect option:focus {
+    background-color: #f0f0f0 !important;
+    color: #000000 !important;
+}

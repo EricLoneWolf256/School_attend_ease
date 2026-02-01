@@ -1,0 +1,706 @@
+<?php
+// Start output buffering
+while (ob_get_level() > 0) {
+    ob_end_clean();
+}
+ob_start();
+
+// Disable error output to the browser
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../../../php_errors.log');
+error_reporting(E_ALL);
+
+// Include required files
+require_once __DIR__ . '/../../includes/db_connection.php';
+require_once __DIR__ . '/../../includes/session.php';
+
+// Database connection is already established in db_connection.php
+// Using the global $conn variable
+
+// Function to log errors
+function logError($message) {
+    if (is_array($message) || is_object($message)) {
+        $message = print_r($message, true);
+    }
+    error_log($message);
+}
+
+// Function to send JSON response and exit
+function sendJsonResponse($data) {
+    global $conn;
+    
+    // Close database connection if it exists
+    if (isset($conn) && $conn instanceof mysqli) {
+        $conn->close();
+    }
+    
+    // Clear any previous output
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    
+    // Set JSON header
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+    }
+    
+    // Output JSON and exit
+    echo json_encode($data);
+    exit();
+}
+
+// Ensure user is admin
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    sendJsonResponse(['status' => 'error', 'message' => 'Unauthorized access']);
+}
+
+// Get the action from POST data
+$action = $_POST['action'] ?? '';
+
+// Default response
+$response = ['status' => 'error', 'message' => 'Invalid action'];
+
+// Log the received POST data for debugging
+error_log('Student Action: ' . $action . ' - POST data: ' . print_r($_POST, true));
+
+// Move generateUniqueStudentId function after the database connection
+if (!function_exists('generateUniqueStudentId')) {
+    function generateUniqueStudentId($conn, $base_id) {
+        $counter = 1;
+        $new_id = $base_id;
+        
+        // Keep trying until we find an available ID
+        while (true) {
+            $check = $conn->prepare("SELECT student_id FROM students WHERE student_number = ?");
+            $check->bind_param("s", $new_id);
+            $check->execute();
+            
+            if ($check->get_result()->num_rows === 0) {
+                return $new_id; // Found an available ID
+            }
+            
+            // If ID exists, try appending a letter (A, B, C, etc.)
+            $suffix = chr(64 + $counter); // A, B, C, ...
+            $new_id = $base_id . $suffix;
+            $counter++;
+            
+            // Safety check to prevent infinite loops
+            if ($counter > 26) {
+                // If we've tried all letters, try appending numbers
+                $new_id = $base_id . '-' . $counter;
+            }
+            
+            if ($counter > 100) {
+                // Absolute fallback
+                return $base_id . '-' . uniqid();
+            }
+        }
+    }
+}
+
+// Make sure we have a valid action
+if (empty($action)) {
+    sendJsonResponse($response);
+}
+
+try {
+    // Handle different actions
+    switch ($action) {
+        case 'add_student':
+            $response = addStudent($conn);
+            break;
+            
+        case 'update_student':
+            $response = updateStudent($conn);
+            break;
+            
+        case 'update_student_status':
+            $response = updateStudentStatus($conn);
+            break;
+            
+        case 'delete_student':
+            $response = deleteStudent($conn);
+            break;
+            
+        case 'import_students':
+            $response = importStudents($conn);
+            break;
+            
+        default:
+            $response = ['status' => 'error', 'message' => 'Invalid action'];
+            break;
+    }
+} catch (Exception $e) {
+    $errorMessage = 'Error in ' . $action . ': ' . $e->getMessage();
+    error_log($errorMessage);
+    $response = ['status' => 'error', 'message' => $errorMessage];
+}
+
+// Send the JSON response
+sendJsonResponse($response);
+
+/**
+ * Add a new student
+ */
+function addStudent($conn) {
+    // Required fields
+    $required = ['student_id', 'first_name', 'last_name', 'email', 'program', 'year_level'];
+    foreach ($required as $field) {
+        if (empty($_POST[$field])) {
+            return ['status' => 'error', 'message' => 'All fields are required'];
+        }
+    }
+    
+    // Sanitize input
+    $student_id = trim($_POST['student_id']);
+    $first_name = trim($_POST['first_name']);
+    $last_name = trim($_POST['last_name']);
+    $email = trim($_POST['email']);
+    $program = trim($_POST['program']);
+    $year_level = trim($_POST['year_level']);
+    
+    // Validate email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return ['status' => 'error', 'message' => 'Please enter a valid email address'];
+    }
+    
+    // Start transaction
+    $conn->begin_transaction();
+    
+    try {
+        // Check if student number already exists in students table
+        $original_student_id = $student_id;
+        $checkStudent = $conn->prepare("SELECT * FROM students WHERE student_number = ?");
+        if ($checkStudent === false) {
+            throw new Exception("Failed to prepare check student query: " . $conn->error);
+        }
+        
+        $checkStudent->bind_param("s", $student_id);
+        if (!$checkStudent->execute()) {
+            throw new Exception("Failed to execute check student query: " . $checkStudent->error);
+        }
+        
+        $existingStudent = $checkStudent->get_result()->fetch_assoc();
+        
+        if ($existingStudent) {
+            // Generate a unique student ID
+            $student_id = generateUniqueStudentId($conn, $original_student_id);
+            
+            // Add a note about the ID change in the program field
+            if (strpos($program, '(Original ID:') === false) {
+                $program .= " (Original ID: $original_student_id)";
+            }
+            
+            // Student exists, update their information
+            $updateStmt = $conn->prepare("
+                UPDATE students 
+                SET program = ?, year_level = ?, status = 'active'
+                WHERE student_number = ?");
+                
+            if ($updateStmt === false) {
+                throw new Exception("Failed to prepare update student query: " . $conn->error);
+            }
+            
+            $updateStmt->bind_param("sss", $program, $year_level, $student_id);
+            
+            if (!$updateStmt->execute()) {
+                throw new Exception("Failed to update student: " . $updateStmt->error . " (" . $conn->errno . ")");
+            }
+            
+            // Update user information
+            $updateUserStmt = $conn->prepare("
+                UPDATE users u
+                JOIN students s ON u.user_id = s.user_id
+                SET u.first_name = ?, u.last_name = ?, u.email = ?, u.role = 'student'
+                WHERE s.student_number = ?
+            ");
+            $updateUserStmt->bind_param("ssss", $first_name, $last_name, $email, $student_id);
+            
+            if (!$updateUserStmt->execute()) {
+                throw new Exception("Failed to update user information: " . $conn->error);
+            }
+            
+            $conn->commit();
+            return ['status' => 'success', 'message' => 'Student information updated successfully'];
+        } else {
+            // Student doesn't exist, create new record
+            // First, check if user with this email or username exists
+            $checkUser = $conn->prepare("SELECT user_id FROM users WHERE email = ? OR username = ?");
+            $checkUser->bind_param("ss", $email, $student_id);
+            $checkUser->execute();
+            $existingUser = $checkUser->get_result()->fetch_assoc();
+            
+            if ($existingUser) {
+                // User exists, check if they're already a student
+                $checkExistingStudent = $conn->prepare("SELECT * FROM students WHERE user_id = ?");
+                $checkExistingStudent->bind_param("i", $existingUser['user_id']);
+                $checkExistingStudent->execute();
+                
+                if ($checkExistingStudent->get_result()->num_rows > 0) {
+                    throw new Exception("This user is already registered as a student");
+                }
+                
+                // Update user information and set role to student
+                $updateUser = $conn->prepare("
+                    UPDATE users 
+                    SET first_name = ?, last_name = ?, email = ?, role = 'student'
+                    WHERE user_id = ?
+                ");
+                $updateUser->bind_param("sssi", $first_name, $last_name, $email, $existingUser['user_id']);
+                
+                if (!$updateUser->execute()) {
+                    throw new Exception("Failed to update user information: " . $conn->error);
+                }
+                
+                $user_id = $existingUser['user_id'];
+            } else {
+                // Create new user
+                $password = $student_id; // Using student ID as default password
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                
+                $insertUser = $conn->prepare("
+                    INSERT INTO users (username, password, email, first_name, last_name, role)
+                    VALUES (?, ?, ?, ?, ?, 'student')
+                ");
+                $insertUser->bind_param("sssss", $student_id, $hashedPassword, $email, $first_name, $last_name);
+                
+                if (!$insertUser->execute()) {
+                    $error = $conn->error;
+                    error_log("SQL Error in insertUser: " . $error);
+                    throw new Exception("Failed to create user: " . $error);
+                }
+                
+                $user_id = $conn->insert_id;
+            }
+            
+            // Check if student number already exists for a different user
+            $checkNumber = $conn->prepare("SELECT user_id FROM students WHERE student_number = ? AND user_id != ?");
+            if ($checkNumber === false) {
+                throw new Exception("Failed to prepare duplicate check query: " . $conn->error);
+            }
+            
+            // For new students, we pass 0 as user_id to ensure we only find other users with the same student number
+            $checkUserId = isset($user_id) ? $user_id : 0;
+            $checkNumber->bind_param("si", $student_id, $checkUserId);
+            if (!$checkNumber->execute()) {
+                throw new Exception("Failed to execute duplicate check: " . $checkNumber->error);
+            }
+            
+            if ($checkNumber->get_result()->num_rows > 0) {
+                throw new Exception("A different student with ID '$student_id' already exists in the system.");
+            }
+            
+            // Create student record
+            $insertStudent = $conn->prepare("
+                INSERT INTO students (user_id, student_number, program, year_level, status)
+                VALUES (?, ?, ?, ?, 'active')
+            ");
+            
+            if ($insertStudent === false) {
+                throw new Exception("Failed to prepare insert student query: " . $conn->error);
+            }
+            
+            $insertStudent->bind_param("isss", $user_id, $student_id, $program, $year_level);
+            
+            if (!$insertStudent->execute()) {
+                $error = $conn->error;
+                error_log("SQL Error in insertStudent: " . $error);
+                error_log("SQL Query: INSERT INTO students (user_id, student_number, program, year_level, status) VALUES ($user_id, $student_id, $program, $year_level, 'active')");
+                
+                // Check for duplicate entry error
+                if (strpos($error, 'Duplicate entry') !== false) {
+                    throw new Exception("A student with this ID already exists in the database.");
+                } else {
+                    throw new Exception("Failed to create student record: " . $error);
+                }
+            }
+            
+            $conn->commit();
+            return ['status' => 'success', 'message' => 'Student added successfully'];
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        return ['status' => 'success', 'message' => 'Student added successfully'];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['status' => 'error', 'message' => $e->getMessage()];
+    }
+}
+
+/**
+ * Update student details
+ */
+function updateStudent($conn) {
+    if (empty($_POST['user_id'])) {
+        return ['status' => 'error', 'message' => 'Invalid student ID'];
+    }
+    
+    $user_id = (int)$_POST['user_id'];
+    
+    // Required fields
+    $required = ['student_id', 'first_name', 'last_name', 'email', 'program', 'year_level', 'status'];
+    foreach ($required as $field) {
+        if (!isset($_POST[$field])) {
+            return ['status' => 'error', 'message' => 'All fields are required'];
+        }
+    }
+    
+    // Validate email
+    if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+        return ['status' => 'error', 'message' => 'Please enter a valid email address'];
+    }
+    
+    // Check if email or student ID is already taken by another user
+    $stmt = $conn->prepare("SELECT user_id FROM users 
+                           WHERE (email = ? OR username = ?) AND user_id != ?");
+    $email = $_POST['email'];
+    $username = $_POST['student_id'];
+    $stmt->bind_param("ssi", $email, $username, $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        return ['status' => 'error', 'message' => 'Student ID or email already exists for another student'];
+    }
+    
+    // Start transaction
+    $conn->begin_transaction();
+    
+    try {
+        // Update users table
+        $query = "UPDATE users SET 
+                 username = ?, 
+                 email = ?, 
+                 first_name = ?, 
+                 last_name = ?";
+        
+        $params = [
+            $username,
+            $email,
+            $_POST['first_name'],
+            $_POST['last_name']
+        ];
+        
+        // Add password to query if provided
+        if (!empty($_POST['password'])) {
+            $query .= ", password = ?";
+            $hashedPassword = password_hash($_POST['password'], PASSWORD_DEFAULT);
+            $params[] = $hashedPassword;
+        }
+        
+        $query .= " WHERE user_id = ?";
+        $params[] = $user_id;
+        
+        $stmt = $conn->prepare($query);
+        $types = str_repeat('s', count($params) - 1) . 'i';
+        $stmt->bind_param($types, ...$params);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update user: " . $stmt->error);
+        }
+        
+        // Update students table
+        $stmt = $conn->prepare("UPDATE students 
+                               SET student_id = ?, program = ?, year_level = ?, status = ? 
+                               WHERE user_id = ?");
+        $stmt->bind_param("ssssi", 
+            $_POST['student_id'],
+            $_POST['program'],
+            $_POST['year_level'],
+            $_POST['status'],
+            $user_id
+        );
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update student: " . $stmt->error);
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        return ['status' => 'success', 'message' => 'Student updated successfully'];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['status' => 'error', 'message' => $e->getMessage()];
+    }
+}
+
+/**
+ * Update student status
+ */
+function updateStudentStatus($conn) {
+    if (empty($_POST['user_id']) || !isset($_POST['status'])) {
+        return ['status' => 'error', 'message' => 'Invalid request'];
+    }
+    
+    $user_id = (int)$_POST['user_id'];
+    $status = $_POST['status'];
+    
+    // Validate status
+    $valid_statuses = ['active', 'inactive', 'suspended', 'graduated'];
+    if (!in_array($status, $valid_statuses)) {
+        return ['status' => 'error', 'message' => 'Invalid status'];
+    }
+    
+    try {
+        $stmt = $conn->prepare("UPDATE students SET status = ? WHERE user_id = ?");
+        $stmt->bind_param("si", $status, $user_id);
+        
+        if ($stmt->execute()) {
+            return ['status' => 'success', 'message' => 'Student status updated successfully'];
+        } else {
+            throw new Exception($stmt->error);
+        }
+    } catch (Exception $e) {
+        return ['status' => 'error', 'message' => 'Failed to update student status: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Delete a student
+ */
+function deleteStudent($conn) {
+    if (empty($_POST['user_id'])) {
+        return ['status' => 'error', 'message' => 'Invalid student ID'];
+    }
+    
+    $user_id = (int)$_POST['user_id'];
+    
+    // Start transaction
+    $conn->begin_transaction();
+    
+    try {
+        // Delete from students table first (foreign key constraint)
+        $stmt = $conn->prepare("DELETE FROM students WHERE user_id = ?");
+        $stmt->bind_param("i", $user_id);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to delete student: " . $stmt->error);
+        }
+        
+        // Delete from users table
+        $stmt = $conn->prepare("DELETE FROM users WHERE user_id = ? AND role = 'student'");
+        $stmt->bind_param("i", $user_id);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to delete user: " . $stmt->error);
+        }
+        
+        if ($stmt->affected_rows === 0) {
+            throw new Exception("Student not found or already deleted");
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        return ['status' => 'success', 'message' => 'Student deleted successfully'];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['status' => 'error', 'message' => $e->getMessage()];
+    }
+}
+
+/**
+ * Import students from CSV
+ */
+function importStudents($conn) {
+    // Check if file was uploaded
+    if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        return ['status' => 'error', 'message' => 'Please upload a valid CSV file'];
+    }
+    
+    // Check file type
+    $file_type = $_FILES['csv_file']['type'];
+    if (!in_array($file_type, ['text/csv', 'application/vnd.ms-excel', 'text/plain'])) {
+        return ['status' => 'error', 'message' => 'Only CSV files are allowed'];
+    }
+    
+    // Open the uploaded file
+    $file = fopen($_FILES['csv_file']['tmp_name'], 'r');
+    if ($file === false) {
+        return ['status' => 'error', 'message' => 'Failed to open the uploaded file'];
+    }
+    
+    // Read header row
+    $header = fgetcsv($file);
+    if ($header === false) {
+        return ['status' => 'error', 'message' => 'Empty or invalid CSV file'];
+    }
+    
+    // Map header columns to field names
+    $header_map = [
+        'student_id' => ['student_id', 'student id', 'id', 'student_no', 'student_no'],
+        'first_name' => ['first_name', 'first name', 'firstname', 'fname'],
+        'last_name' => ['last_name', 'last name', 'lastname', 'lname'],
+        'email' => ['email', 'email address', 'e-mail'],
+        'program' => ['program', 'course', 'programme'],
+        'year_level' => ['year_level', 'year', 'level', 'year level']
+    ];
+    
+    $field_indices = [];
+    
+    // Find the index of each required field
+    foreach ($header_map as $field => $possible_names) {
+        $found = false;
+        foreach ($possible_names as $name) {
+            $index = array_search(strtolower($name), array_map('strtolower', $header));
+            if ($index !== false) {
+                $field_indices[$field] = $index;
+                $found = true;
+                break;
+            }
+        }
+        
+        if (!$found && $field !== 'year_level') { // year_level is optional
+            return ['status' => 'error', 'message' => "Required column not found: " . $possible_names[0]];
+        }
+    }
+    
+    // Start transaction
+    $conn->begin_transaction();
+    
+    try {
+        $imported = 0;
+        $skipped = 0;
+        $errors = [];
+        $row_num = 1; // Start from 1 to account for header row
+        
+        // Prepare statements for better performance
+        $check_user = $conn->prepare("SELECT user_id FROM users WHERE email = ? OR username = ?");
+        $insert_user = $conn->prepare("INSERT INTO users (username, password, email, first_name, last_name, role) 
+                                     VALUES (?, ?, ?, ?, ?, 'student')");
+        $insert_student = $conn->prepare("INSERT INTO students (user_id, student_id, program, year_level, status) 
+                                        VALUES (?, ?, ?, ?, 'active')");
+        
+        // Process each row
+        while (($row = fgetcsv($file)) !== false) {
+            $row_num++;
+            
+            // Skip empty rows
+            if (count(array_filter($row)) === 0) {
+                continue;
+            }
+            
+            // Get field values
+            $student = [];
+            foreach ($field_indices as $field => $index) {
+                if (isset($row[$index])) {
+                    $student[$field] = trim($row[$index]);
+                } else {
+                    $student[$field] = '';
+                }
+            }
+            
+            // Skip if required fields are empty
+            if (empty($student['student_id']) || empty($student['first_name']) || 
+                empty($student['last_name']) || empty($student['email'])) {
+                $skipped++;
+                $errors[] = "Row $row_num: Missing required fields";
+                continue;
+            }
+            
+            // Validate email
+            if (!filter_var($student['email'], FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+                $errors[] = "Row $row_num: Invalid email address: " . $student['email'];
+                continue;
+            }
+            
+            // Set default values for optional fields
+            if (empty($student['program'])) {
+                $student['program'] = 'Undeclared';
+            }
+            
+            if (empty($student['year_level']) || !is_numeric($student['year_level'])) {
+                $student['year_level'] = 1;
+            } else {
+                $student['year_level'] = (int)$student['year_level'];
+            }
+            
+            // Check if student already exists
+            $check_user->bind_param("ss", $student['email'], $student['student_id']);
+            $check_user->execute();
+            $result = $check_user->get_result();
+            
+            if ($result->num_rows > 0) {
+                $skipped++;
+                $errors[] = "Row $row_num: Student ID or email already exists: " . $student['student_id'];
+                continue;
+            }
+            
+            // Generate password (use student ID as default)
+            $password = $student['student_id'];
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Insert into users table
+            $insert_user->bind_param(
+                "sssss",
+                $student['student_id'],
+                $hashedPassword,
+                $student['email'],
+                $student['first_name'],
+                $student['last_name']
+            );
+            
+            if (!$insert_user->execute()) {
+                throw new Exception("Failed to insert user: " . $insert_user->error);
+            }
+            
+            $user_id = $conn->insert_id;
+            
+            // Insert into students table
+            $insert_student->bind_param(
+                "issi",
+                $user_id,
+                $student['student_id'],
+                $student['program'],
+                $student['year_level']
+            );
+            
+            if (!$insert_student->execute()) {
+                throw new Exception("Failed to insert student: " . $insert_student->error);
+            }
+            
+            $imported++;
+            
+            // TODO: Send welcome email if requested
+            if (isset($_POST['send_email']) && $_POST['send_email'] === 'on') {
+                // Implement email sending logic here
+            }
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        $message = "Successfully imported $imported students";
+        if ($skipped > 0) {
+            $message .= ", skipped $skipped rows with errors";
+            if (!empty($errors)) {
+                $message .= ". First few errors: " . implode("; ", array_slice($errors, 0, 3));
+                if (count($errors) > 3) {
+                    $message .= "...";
+                }
+            }
+        }
+        
+        return [
+            'status' => 'success', 
+            'message' => $message,
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'errors' => $errors
+        ];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['status' => 'error', 'message' => 'Import failed: ' . $e->getMessage()];
+    } finally {
+        fclose($file);
+    }
+}
