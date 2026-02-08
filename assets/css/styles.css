@@ -17,7 +17,7 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%) !important;
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d3748 100%) !important;
     color: var(--text-color);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -297,6 +297,81 @@ body {
     backdrop-filter: blur(10px);
     border: 1px solid var(--primary-color);
     border-radius: 10px;
+}
+
+/* Footer duplication fix - HIDE ALL DUPLICATE FOOTERS */
+footer {
+    display: none !important;
+}
+
+footer:last-of-type {
+    display: block !important;
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* Ensure only one footer is visible on any page */
+body > footer:not(:last-of-type) {
+    display: none !important;
+}
+
+/* Alternative approach - hide any footer that's not the last one */
+footer:not(:last-child) {
+    display: none !important;
+}
+
+/* Show only the very last footer element in the entire document */
+footer:last-child {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Ultra-specific rule - hide any element containing copyright text */
+*[class*="copyright"], .copyright, div:contains("All rights reserved"), span:contains("All rights reserved") {
+    display: none !important;
+}
+
+/* Alternative - hide footer elements with specific text patterns */
+footer:has(span:contains("All rights reserved")) {
+    display: none !important;
+}
+
+/* Hide any footer that contains AttendEase copyright */
+footer:contains("AttendEase") {
+    display: none !important;
+}
+
+/* Hide sticky-footer class specifically */
+.sticky-footer {
+    display: none !important;
+}
+
+/* Ultimate CSS rules to completely eliminate footer duplication across all pages */
+html body footer:not(:last-of-type) {
+    display: none !important;
+}
+html body footer:last-of-type {
+    display: block !important;
+}
+
+/* Hide any element containing copyright text */
+*[class*="copyright"], .copyright, div:contains("All rights reserved"), span:contains("All rights reserved") {
+    display: none !important;
+}
+
+/* Alternative - hide footer elements with specific text patterns */
+footer:has(span:contains("All rights reserved")) {
+    display: none !important;
+}
+
+/* Hide any footer that contains AttendEase copyright */
+footer:contains("AttendEase") {
+    display: none !important;
+}
+
+/* Hide sticky-footer class specifically */
+.sticky-footer {
+    display: none !important;
 }
 
 /* Responsive adjustments */

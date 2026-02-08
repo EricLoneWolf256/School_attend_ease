@@ -57,24 +57,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - <?php echo SITE_NAME; ?></title>
-    <link rel="stylesheet" href="/ghost/assets/css/styles.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
     <style>
-        body {
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%) !important;
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: #fff;
+        :root {
+            --primary-color: #990000;
+            --secondary-color: #FFD700;
+            --accent-color: #000000;
         }
+        
+        /* Override Bootstrap completely */
+        body {
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%) !important;
+            font-family: 'Inter', -apple-system, sans-serif !important;
+            color: #fff !important;
+            margin: 0 !important;
+            padding: 20px !important;
+        }
+        
         .login-container {
             max-width: 420px;
             width: 100%;
             padding: 20px;
             margin: auto;
         }
+        
         .card {
             background: rgba(255, 255, 255, 0.05) !important;
             backdrop-filter: blur(15px) saturate(180%);
@@ -84,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
             overflow: hidden;
         }
+        
         .card-header {
             background: rgba(153, 0, 0, 0.2) !important;
             color: var(--secondary-color) !important;
@@ -117,15 +129,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 6px 20px rgba(153, 0, 0, 0.4);
         }
         .form-control {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            color: #fff !important;
-            padding: 0.75rem 1rem;
-        }
-        .form-control:focus {
             background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #fff !important;
+            padding: 0.8rem 1rem !important;
+            border-radius: 10px !important;
+            font-family: 'Inter', -apple-system, sans-serif !important;
+            font-size: 0.95rem !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        /* Override Bootstrap input group styling */
+        .input-group {
+            display: flex !important;
+            margin-bottom: 1rem !important;
+        }
+        
+        .input-group-text {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: var(--secondary-color) !important;
+            border-right: none !important;
+            border-radius: 10px 0 0 10px !important;
+        }
+        
+        .input-group .form-control {
+            border-radius: 0 10px 10px 0 !important;
+        }
+        
+        .input-group:focus-within .input-group-text {
             border-color: var(--primary-color) !important;
-            box-shadow: 0 0 0 0.25rem rgba(153, 0, 0, 0.25);
+        }
+        .form-select {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #fff !important;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            font-family: 'Inter', -apple-system, sans-serif !important;
+            font-size: 0.95rem !important;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.7)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 0.7rem center !important;
+            background-size: 1.2em !important;
+            padding-right: 2.5rem !important;
+        }
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .form-select option {
+            background: #1a1a1a !important;
+            color: #fff !important;
+            padding: 10px;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 0.25rem rgba(153, 0, 0, 0.25) !important;
+            outline: none;
+            color: #fff !important;
         }
         .forgot-password a, .text-center a {
             color: var(--secondary-color);
@@ -142,19 +207,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--secondary-color);
             border-right: none;
         }
-        .app-logo {
-            font-size: 3rem;
-            color: var(--primary-color);
-            margin-bottom: 1rem;
-            filter: drop-shadow(0 0 10px rgba(153, 0, 0, 0.5));
-        }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <div class="text-center">
-            <i class="fas fa-calendar-check app-logo"></i>
-        </div>
         <div class="card glass">
             <div class="card-header">
                 <h4>ATTEND <span style="color: #fff;">EASE</span></h4>

@@ -1,0 +1,7 @@
+course_code,lecturer_email,date,start_time,end_time,title
+CS101,lecturer1@example.com,2024-02-01,09:00,10:30,Introduction to Programming
+CS101,lecturer1@example.com,2024-02-03,09:00,10:30,Data Types and Variables
+CS102,lecturer2@example.com,2024-02-01,11:00,12:30,Web Development Basics
+CS102,lecturer2@example.com,2024-02-05,11:00,12:30,CSS and Styling
+IT201,lecturer3@example.com,2024-02-02,14:00,15:30,Network Fundamentals
+IT201,lecturer3@example.com,2024-02-04,14:00,15:30,Network Protocols

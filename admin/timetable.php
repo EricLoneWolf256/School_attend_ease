@@ -12,6 +12,162 @@ $db = getDBConnection();
 $success = '';
 $error = '';
 
+// Handle timetable import
+if (isset($_POST['import_timetable']) && isset($_FILES['timetable_file'])) {
+    try {
+        // Check if file was uploaded
+        if ($_FILES['timetable_file']['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception('Please upload a valid file');
+        }
+        
+        // Check file type
+        $allowed_types = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
+        if (!in_array($_FILES['timetable_file']['type'], $allowed_types)) {
+            throw new Exception('Only CSV files are allowed');
+        }
+        
+        // Open the uploaded file
+        $file = fopen($_FILES['timetable_file']['tmp_name'], 'r');
+        if ($file === false) {
+            throw new Exception('Failed to open the uploaded file');
+        }
+        
+        // Read header row
+        $header = fgetcsv($file);
+        if ($header === false) {
+            throw new Exception('Empty or invalid CSV file');
+        }
+        
+        // Normalize header to lowercase
+        $header = array_map('strtolower', $header);
+        
+        // Find required columns
+        $required_columns = ['course_code', 'lecturer_email', 'date', 'start_time', 'end_time', 'title'];
+        $column_indices = [];
+        
+        foreach ($required_columns as $col) {
+            $found = false;
+            foreach ($header as $index => $header_col) {
+                if (strpos(strtolower($header_col), $col) !== false) {
+                    $column_indices[$col] = $index;
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                throw new Exception("Required column not found: $col");
+            }
+        }
+        
+        // Start transaction
+        $db->beginTransaction();
+        
+        $imported = 0;
+        $skipped = 0;
+        $errors = [];
+        $row_num = 1;
+        
+        // Process each row
+        while (($row = fgetcsv($file)) !== false) {
+            $row_num++;
+            
+            // Skip empty rows
+            if (count(array_filter($row)) === 0) {
+                continue;
+            }
+            
+            // Extract data
+            $course_code = trim($row[$column_indices['course_code']]);
+            $lecturer_email = trim($row[$column_indices['lecturer_email']]);
+            $date = trim($row[$column_indices['date']]);
+            $start_time = trim($row[$column_indices['start_time']]);
+            $end_time = trim($row[$column_indices['end_time']]);
+            $title = trim($row[$column_indices['title']]);
+            
+            // Validate required fields
+            if (empty($course_code) || empty($lecturer_email) || empty($date) || empty($start_time) || empty($end_time)) {
+                $skipped++;
+                $errors[] = "Row $row_num: Missing required fields";
+                continue;
+            }
+            
+            // Get course ID
+            $stmt = $db->prepare("SELECT course_id FROM courses WHERE course_code = ?");
+            $stmt->execute([$course_code]);
+            $course = $stmt->fetch();
+            
+            if (!$course) {
+                $skipped++;
+                $errors[] = "Row $row_num: Course not found: $course_code";
+                continue;
+            }
+            
+            // Get lecturer ID
+            $stmt = $db->prepare("SELECT user_id FROM users WHERE email = ? AND role = 'lecturer'");
+            $stmt->execute([$lecturer_email]);
+            $lecturer = $stmt->fetch();
+            
+            if (!$lecturer) {
+                $skipped++;
+                $errors[] = "Row $row_num: Lecturer not found: $lecturer_email";
+                continue;
+            }
+            
+            // Validate date and time formats
+            if (!DateTime::createFromFormat('Y-m-d', $date)) {
+                $skipped++;
+                $errors[] = "Row $row_num: Invalid date format: $date";
+                continue;
+            }
+            
+            if (!DateTime::createFromFormat('H:i', $start_time) || !DateTime::createFromFormat('H:i', $end_time)) {
+                $skipped++;
+                $errors[] = "Row $row_num: Invalid time format";
+                continue;
+            }
+            
+            // Check for duplicate lecture
+            $stmt = $db->prepare("SELECT lecture_id FROM lectures WHERE course_id = ? AND lecturer_id = ? AND scheduled_date = ? AND start_time = ? AND end_time = ?");
+            $stmt->execute([$course['course_id'], $lecturer['user_id'], $date, $start_time, $end_time]);
+            $existing = $stmt->fetch();
+            
+            if ($existing) {
+                $skipped++;
+                $errors[] = "Row $row_num: Duplicate lecture";
+                continue;
+            }
+            
+            // Insert lecture
+            $stmt = $db->prepare("INSERT INTO lectures (course_id, lecturer_id, title, scheduled_date, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$course['course_id'], $lecturer['user_id'], $title, $date, $start_time, $end_time]);
+            
+            $imported++;
+        }
+        
+        fclose($file);
+        $db->commit();
+        
+        $message = "Successfully imported $imported lectures";
+        if ($skipped > 0) {
+            $message .= ", skipped $skipped rows with errors";
+            if (!empty($errors)) {
+                $message .= ". First few errors: " . implode("; ", array_slice($errors, 0, 3));
+                if (count($errors) > 3) {
+                    $message .= "...";
+                }
+            }
+        }
+        
+        $_SESSION['success'] = $message;
+        
+    } catch (Exception $e) {
+        $db->rollBack();
+        $_SESSION['error'] = 'Import failed: ' . $e->getMessage();
+    }
+    
+    redirect('timetable.php');
+}
+
 // Get filter parameters
 $course_id = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
 $lecturer_id = isset($_GET['lecturer_id']) ? (int)$_GET['lecturer_id'] : 0;
@@ -108,6 +264,23 @@ ob_start();
 include 'includes/header.php';
 
 ?>
+<style>
+    body {
+        background: linear-gradient(135deg, #1a1a2e 0%, #2d3748 100%) !important;
+    }
+    
+    /* Fix footer duplication - hide duplicate footers */
+    footer:not(:last-of-type) {
+        display: none !important;
+    }
+    
+    /* Ensure only the last footer is visible */
+    footer:last-of-type {
+        display: block !important;
+    }
+</style>
+
+<?php ?>
 
 <div class="container-fluid px-4">
     <!-- Page Heading -->
@@ -204,10 +377,14 @@ include 'includes/header.php';
     <div class="card glass mb-4 border-0">
         <div class="card-header py-3 d-flex justify-content-between align-items-center bg-transparent border-bottom border-secondary">
             <h6 class="m-0 font-weight-bold" style="color: var(--secondary-color);">Scheduled Lectures</h6>
-            <div class="dropdown no-arrow">
-                <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-ellipsis-v fa-sm fa-fw text-white-50"></i>
-                </a>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-warning btn-sm text-white" data-toggle="modal" data-target="#importTimetableModal">
+                    <i class="fas fa-file-import me-1"></i> Import Timetable
+                </button>
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-white-50"></i>
+                    </a>
                 <div class="dropdown-menu dropdown-menu-right glass border-secondary shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
                     <div class="dropdown-header text-white-50">Export Options:</div>
                     <a class="dropdown-item text-white" href="#"><i class="fas fa-file-excel fa-sm fa-fw mr-2 text-white-50"></i> Export to Excel</a>
@@ -418,6 +595,67 @@ foreach ($lectures as $lecture):
         </div>
     </div>
 </div>
+
+<!-- Import Timetable Modal -->
+<div class="modal fade" id="importTimetableModal" tabindex="-1" aria-labelledby="importTimetableModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass">
+            <div class="modal-header bg-transparent border-bottom border-secondary">
+                <h5 class="modal-title text-white" id="importTimetableModalLabel">Import Timetable</h5>
+                <button type="button" class="btn-close btn-close-white" data-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="timetable.php" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="import_timetable" value="1">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Instructions:</strong> Upload a CSV file with timetable data. The system will create lectures automatically.
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6 class="text-white mb-3">Required CSV Columns:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="text-white-50">
+                                    <li><code>course_code</code> - Course code (e.g., "CS101")</li>
+                                    <li><code>lecturer_email</code> - Lecturer's email address</li>
+                                    <li><code>date</code> - Date (YYYY-MM-DD format)</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="text-white-50">
+                                    <li><code>start_time</code> - Start time (HH:MM format)</li>
+                                    <li><code>end_time</code> - End time (HH:MM format)</li>
+                                    <li><code>title</code> - Lecture title/description</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="timetableFile" class="form-label text-white">CSV File</label>
+                        <input class="form-control" type="file" id="timetableFile" name="timetable_file" accept=".csv" required>
+                        <div class="form-text text-white-50">
+                            Download the <a href="templates/timetable_import_template.csv" download class="text-warning">CSV template</a> for reference.
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Note:</strong> The system will validate that courses and lecturers exist before creating lectures.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-file-import me-1"></i> Import Timetable
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?php 
 endforeach;
 $modals = ob_get_clean();
@@ -446,7 +684,25 @@ $(document).ready(function() {
         ]
     });
     
+    // Initialize Bootstrap modals
+    $('.modal').modal({
+        backdrop: true,
+        keyboard: true,
+        show: false
+    });
+    
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();
+    
+    // Ensure modal buttons work properly
+    $(document).on('click', '[data-toggle="modal"]', function() {
+        var target = $(this).attr('data-target');
+        $(target).modal('show');
+    });
+    
+    // Handle modal close buttons
+    $(document).on('click', '[data-dismiss="modal"]', function() {
+        $(this).closest('.modal').modal('hide');
+    });
 });
 </script>
