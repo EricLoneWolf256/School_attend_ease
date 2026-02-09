@@ -64,6 +64,57 @@ body {
     min-height: calc(100vh - 56px);
 }
 
+/* Force footer text to be visible without background */
+footer .copyright, footer .text-center {
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+    padding: 10px 0 !important;
+}
+
+/* Ultimate footer duplication elimination */
+footer {
+    display: none !important;
+    position: static !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Show ONLY the very last footer element */
+footer:last-child {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+    padding: 10px 0 !important;
+    margin: 0 !important;
+}
+
+/* Hide ALL other footer elements */
+footer:not(:last-child) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Additional aggressive footer hiding */
+.sticky-footer, .glass.footer, .border-0.footer {
+    display: none !important;
+}
+
+/* Hide any element with copyright text */
+*:contains("All rights reserved"), *:contains("Copyright") {
+    display: none !important;
+}
+
+/* Show copyright only in last footer */
+footer:last-child *:contains("All rights reserved"),
+footer:last-child *:contains("Copyright") {
+    display: block !important;
+    visibility: visible !important;
+}
+
 /* SB Admin 2 Support */
 #content-wrapper {
     background: transparent !important;
