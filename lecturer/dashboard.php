@@ -28,7 +28,7 @@ try {
     $assigned_courses = [];
 }
 
-// Get today's lectures
+// Get today's lectures (enhanced to include recent imports)
 try {
     $stmt = $db->prepare(
         "SELECT l.*, c.course_code, c.course_name,
@@ -37,8 +37,10 @@ try {
          FROM lectures l
          JOIN courses c ON l.course_id = c.course_id
          WHERE l.lecturer_id = ?
-         AND l.scheduled_date = CURDATE()
-         ORDER BY l.start_time"
+         AND (l.scheduled_date = CURDATE() 
+              OR l.scheduled_date >= CURDATE() - INTERVAL 1 DAY)
+         ORDER BY l.scheduled_date, l.start_time
+         LIMIT 10"
     );
     $stmt->execute([$lecturer_id]);
     $todays_lectures = $stmt->fetchAll();
@@ -47,7 +49,7 @@ try {
     $todays_lectures = [];
 }
 
-// Get upcoming lectures (next 7 days)
+// Get upcoming lectures (next 7 days, enhanced to include recent imports)
 try {
     $stmt = $db->prepare(
         "SELECT l.*, c.course_code, c.course_name,
@@ -56,9 +58,9 @@ try {
          FROM lectures l
          JOIN courses c ON l.course_id = c.course_id
          WHERE l.lecturer_id = ?
-         AND l.scheduled_date BETWEEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+         AND l.scheduled_date >= CURDATE()
          ORDER BY l.scheduled_date, l.start_time
-         LIMIT 5"
+         LIMIT 10"
     );
     $stmt->execute([$lecturer_id]);
     $upcoming_lectures = $stmt->fetchAll();

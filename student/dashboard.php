@@ -36,7 +36,7 @@ try {
     $enrolled_courses = [];
 }
 
-// Get upcoming lectures
+// Get upcoming lectures (extended to include recent imports)
 $upcoming_lectures = [];
 try {
     $stmt = $db->prepare(
@@ -48,10 +48,10 @@ try {
          WHERE l.course_id IN (
              SELECT course_id FROM student_courses WHERE student_id = ?
          )
-         AND (l.scheduled_date > CURDATE() 
+         AND (l.scheduled_date >= CURDATE() - INTERVAL 1 DAY 
               OR (l.scheduled_date = CURDATE() AND l.end_time > CURTIME()))
          ORDER BY l.scheduled_date, l.start_time
-         LIMIT 5"
+         LIMIT 10"
     );
     $stmt->execute([$student_id]);
     $upcoming_lectures = $stmt->fetchAll();
